@@ -1,0 +1,46 @@
+pipeline{
+    parameters{
+        boolenParam(name: 'autoaprove', defaultValue: false, description:'automaticlly run apply after generating plan ')
+    }
+    environment {
+        AWS_ACCESS_KEY_ID = credentials('AWS_ACCESS_KEY_ID')
+        AWS_SECRET_ACCESS_KEY =credentials('AWS_SECRETE_ACCESS_KEY')
+    }
+    agent any 
+    stages {
+        stage('checkout'){
+            steps{
+                script {
+                    dir("terraform")
+                    {
+                        git "https://github.com/Sainivipul/Terraform_AWS_VPC-infrastructure-.git"
+                    }
+                }
+            }
+        }
+        stage ('plan'){
+            steps{
+                sh 'pwd;cd terraform/ ; terrafrom init '
+                sh 'pwd;cd terraform/ ; terraform plan -out tfplan'
+                sh 'pwd;cd terraform/ ; terraform show -no-color tfplan > tfplan.txt'
+            }
+        }
+        stage ( 'Approval'){
+            when {
+                not {
+                    equals expected : true, actual: params.autoApprove
+                }
+            }
+            steps{
+                def plan = readFile 'terraform/tfplan.txt'
+                input message: "Do you wants to apply the plan?",
+                parameters[text(name: 'plan', description: 'please review the plan', defaultValue: plan )]
+            }
+        }
+        stage('Apply') {
+            steps {
+                sh "pwd;cd terraform/ ; terraform apply -input=false tfplan"
+            }
+        }
+    }
+}
